@@ -1,0 +1,166 @@
+---
+title: "QDA"
+author: "Chieh-Ya Chang"
+date: "2025-06-04"
+output: html_document
+---
+
+```{r}
+library(mlbench)
+data(PimaIndiansDiabetes)
+```
+
+```{r}
+library(mvtnorm)
+library(klaR)
+library(psych)
+library(MASS)
+library(biotools)
+```
+
+
+```{r}
+pairs.panels(PimaIndiansDiabetes[1:8],
+             gap = 0,
+             bg = c("red", "blue")[PimaIndiansDiabetes$diabetes],
+             pch = 21)
+```
+
+
+#Option 1 for Box's M Test
+```{r}
+mydata <- PimaIndiansDiabetes[, 1:8]
+res <- boxM(PimaIndiansDiabetes[, 1:8], PimaIndiansDiabetes[, "diabetes"])
+res
+summary(res)
+#From p-value, we conclude that we reject null hypothesis, so covariance matrices are not equal
+#Thus, we choose not to use LDA, as it assume all covariance matrices are the same
+#We decide to use QDA
+```
+
+#Option 2 for Box's M test
+```{r}
+x <- PimaIndiansDiabetes[, 1:8]
+y <- PimaIndiansDiabetes$diabetes
+x_pos <- x[y == "pos", ]
+x_neg <- x[y == "neg", ]
+n1 <- nrow(x_pos)
+n2 <- nrow(x_neg)
+p <- ncol(x)
+k = 2
+S1 <- cov(x_pos)
+S2 <- cov(x_neg)
+Spl <- ((n1-1)*S1 + (n2-1)*S2) / ((n1-1)+(n2-1))
+M <- det(S1)^(267/2) * det(S2)^((499)/2) / det(Spl)^(766/2)
+M_log <- (267/2)*log(det(S1)) + (499/2)*log(det(S2)) - (766/2)*log(det(Spl))
+c1 <- ((1/(n1-1))-(1/((n1-1)+(n2-1))))*(151/54) + (1/(n2-1))-(1/((n1-1)+(n2-1)))*(151/54)
+c2 <- (70/6)*(((1/(n1-1)^2)-(1/((n1-1)+(n2-1))^2)) + ((1/(n2-1)^2)-(1/((n1-1)+(n2-1))^2)))
+a1 <- (1/2)*1*8*9
+a2 <- (a1+2)/(c2-c1^2)
+b1 <- (1-c1-a1/a2)/a1
+```
+
+```{r}
+#Chi-squared approximation
+u_stat = -2*(1-c1)*M_log
+u_stat
+qchisq(0.95,(1/2)*1*8*9)
+#Since u_stat = 228.3709 > critical value = 50.99846
+#We reject the null hypothesis that all covariance matrices are the same
+```
+
+```{r}
+#F-distribution approximation
+#Since c1^2 <, we use F approx = -2*b1*log(M)
+F_stat <- -2*b1*M_log
+F_stat
+qf(0.95,a1,a2)
+#Since F_stat = 6.342766 > critical value = 1.41667
+#We reject the null hypothesis that all covariance matrices are the same
+```
+
+```{r}
+#Comparing these two approximations, since we prefer the approximation with larger gap
+#We choose the chi-squared approximation to make a decision
+#Thus, we choose not to use LDA, as it assume all covariance matrices are the same
+#We decide to use QDA
+```
+
+#Use QDA
+```{r}
+set.seed(123)
+ind <- sample(2, nrow(PimaIndiansDiabetes),
+              replace = TRUE,
+              prob = c(0.6, 0.4))
+training_qda <- PimaIndiansDiabetes[ind==1,]
+testing_qda <- PimaIndiansDiabetes[ind==2,]
+#dim(PimaIndiansDiabetes)
+#dim(training_qda)
+#dim(testing_qda)
+
+qda_model <- qda(diabetes ~ ., data = training_qda)
+qda_model
+```
+
+```{r}
+#Confusion Matrix for both training and testing data
+p1_qda <- predict(qda_model, training_qda)$class
+tab1_qda <- table(Predicted = p1_qda, Actual = training_qda$diabetes)
+tab1_qda
+
+p2_qda <- predict(qda_model, testing_qda)$class
+tab2_qda <- table(Predicted = p2_qda, Actual = testing_qda$diabetes)
+tab2_qda
+```
+
+
+```{r}
+#Test Accuracy = 0.7 = 70%
+test_accuracy_qda <- sum(diag(tab2_qda))/sum(tab2_qda)
+test_accuracy_qda
+```
+
+
+#Decision Boundary
+```{r}
+partimat(diabetes~pregnant+glucose+pressure+triceps, data = training_qda, method = "qda")
+partimat(diabetes~insulin+mass+pedigree+age, data = training_qda, method = "qda")
+partimat(diabetes~glucose+mass, data = training_qda, method = "qda")
+```
+
+
+```{r}
+mu_pos <- colMeans(x_pos)
+mu_neg <- colMeans(x_neg)
+S_pos <- cov(x_pos)
+S_neg <- cov(x_neg)
+```
+
+```{r}
+l1 = 0.5*log(det(S_neg)/det(S_pos))
+l2 = 0.5*(t(mu_neg))%*%solve(S_neg)%*%(mu_neg)-t(mu_pos)%*%solve(S_pos)%*%(mu_pos)
+c <- l1+l2
+c
+```
+
+
+```{r}
+b <- mu_pos%*%solve(S_pos) - mu_neg%*%solve(S_neg)
+b
+```
+
+
+```{r}
+A <- solve(S_neg)-solve(S_pos)
+A
+```
+
+```{r}
+#δ_pos(x)-δ_neg(x) = 0.5*x^T*A*x + x^T*b + c
+#if point x makes δ_pos(x)-δ_neg(x) > 0, assign point x to class positive
+#if point x makes δ_pos(c)-δ_neg(x) < 0, assign point x to class negative
+#The decision boundary is defined by:
+#δ_pos(x) - δ_neg(x) = 0
+# 0.5 * x^T * Ax + x^T * b + c = 0
+```
+
