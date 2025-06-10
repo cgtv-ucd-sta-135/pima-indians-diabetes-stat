@@ -1,0 +1,68 @@
+---
+title: "STA135GroupProject"
+author: "Himmat Toor"
+date: "2025-06-04"
+output: html_document
+---
+
+```{r}
+library(mlbench)
+data(PimaIndiansDiabetes)
+nrow(PimaIndiansDiabetes)
+```
+
+
+```{r}
+class0 <- subset(PimaIndiansDiabetes, diabetes == "neg")
+class1 <- subset(PimaIndiansDiabetes, diabetes == "pos")
+
+sum(PimaIndiansDiabetes$diabetes == "neg")
+```
+
+
+```{r}
+cov0 = cov(class0[, -9])
+cov1 = cov(class1[, -9])
+```
+
+```{r}
+data = within(PimaIndiansDiabetes, rm(diabetes))
+covMatrix = cov(data)
+covMatrix
+```
+
+
+
+```{r}
+par(mfrow = c(3, 3), mar = c(4, 4, 2, 1)) 
+
+colors <- ifelse(PimaIndiansDiabetes$diabetes == "neg", "green", "red")
+
+for (col in names(PimaIndiansDiabetes)[1:8]) {
+  plot(PimaIndiansDiabetes[[col]], 
+       col = colors,
+       pch = 19,       
+       cex = 0.5,     
+       main = col,
+       xlab = "",
+       ylab = "")
+}
+
+plot.new()
+legend("center", legend = c("Negative", "Positive"),
+       col = c("green", "red"), pch = 19, cex = 0.8)
+
+```
+
+
+```{r}
+library(modelsummary)
+library(vtable)
+
+sumtable(PimaIndiansDiabetes, 
+         digits = 3, 
+         title = "Summary Statistics for Pima Indians Diabetes Dataset",
+         out = "latex") 
+
+```
+
