@@ -1,0 +1,134 @@
+---
+title: "STA135 Final Project Final Draft"
+author: "Mo Grewal"
+date: "2025-06-08"
+output: pdf_document
+---
+
+```{r}
+# Loading in and renaming the data
+library(mlbench)
+data(PimaIndiansDiabetes)
+data <- PimaIndiansDiabetes
+data
+```
+
+```{r}
+# separating training and testing data
+set.seed(123)
+ind <- sample(2, nrow(PimaIndiansDiabetes),
+              replace = TRUE,
+              prob = c(0.6, 0.4))
+training <- PimaIndiansDiabetes[ind==1,]
+testing <- PimaIndiansDiabetes[ind==2,]
+```
+
+```{r}
+# removing diabetes column on training data
+A <- training[, 1:8]
+
+# Centering the data
+A$pregnant <- A$pregnant - mean(A$pregnant)
+
+A$glucose <- A$glucose - mean(A$glucose)
+
+A$pressure <- A$pressure - mean(A$pressure)
+
+A$triceps <- A$triceps - mean(A$triceps)
+
+A$insulin <- A$insulin - mean(A$insulin)
+
+A$mass <- A$mass - mean(A$mass)
+
+A$pedigree <- A$pedigree - mean(A$pedigree)
+
+A$age <- A$age - mean(A$age)
+
+A
+
+# scaling data (since values from column to column are extremely varied)
+A_scaled <- data.frame(scale(A, center = F, scale = T))
+```
+
+```{r}
+# Calculating eigenvalues and eigenvectors of scaled + centered data
+evalues <- eigen(cov(A_scaled))$values
+evectors <- eigen(cov(A_scaled))$vectors
+
+l1 <- evectors[1:8, 1] %*% t(A_scaled)
+l2 <- evectors[1:8, 2] %*% t(A_scaled)
+
+# Projecting data into 2D space defined by the first two principal components
+plot(-l1, -l2, col = ifelse(training$diabetes == "pos", "red", "black"), ylim = c(-4, 7), xlab = "Principal Component 1", ylab = "Principal Component 2")
+legend("topleft", legend = c("Non-diabetic", "Diabetic"), fill = c("black", "red"), cex = .8)
+
+# plotting sorted PC1 scores, how data points distribute along the first principal component
+plot(sort(-l1))
+```
+The first plot depicts the scaled and centered data projected onto principal components 1 and 2. We can see that a majority of the data is clustered in the center of the y axis and the 2 to -2 area on the x axis. There are a few datapoints that may be outliers on the left hand side of the graph that stray from the larger cloud of datapoints. The graph has a wide spread along the x axis, indicating that the first principal components captures the most variance between principal components 1 and 2. There is a difference in clustering based on whether or not the patient has diabetes, with more points of non-diabetic patients clustering to the left and more points of diabetic patients clustering to the right, although there is some overlap between the groups. This may indicate that PC1 and PC2 capture features that can assist in distinguishing between patients with and without diabetes. 
+
+The second plot shows us that the data is continuously and relatively evenly spread across principal component 1, indicating continuous variation. There do not seem to be any outliers in the data or distinct clusters of observations. 
+
+```{r}
+# Contribution ratio
+
+len <- length(evalues)
+
+# Finding contribution ratio
+total <- sum(evalues)
+contrib_ratio <- cumsum(evalues)/total
+
+plot(contrib_ratio, ylab = "Contribution Ratios", main = "Contribution Ratio Plot") 
+abline(a = .7, b = 0, col = "red", lty = 2)
+```
+We are looking for the principal components we choose to explain 70% of the variance cumulatively. Then, the contribution ratio plot indicates that we should choose the first 4 principal components.
+
+```{r}
+# Creating a plot of the eigenvalues
+plot(evalues, xlab = "Eigenvalues", ylab = "value", main = "Overall Threshold")
+abline(a = 1, b = 0, col = "red", lty = 2)
+```
+Since only the first three eigenvalues of the scaled and centered data have a value greater than one, we should choose the first three principal components by the Kaiser criterion. 
+
+```{r}
+# Creating scree plot
+train_cor <- cor(A_scaled)
+cor_evalues <- eigen(train_cor)$values
+cor_evectors <- eigen(train_cor)$vectors
+
+B <- data[, 1:8]
+
+pca2 <- prcomp(B, center = T, scale = T) 
+evalues2 <- (pca2$sdev)^2
+
+# Plots
+par(mfrow=c(1,2))
+plot(cor_evalues, type = "b", main = "Scree Plot",
+     ylab = "Eigenvalues", xlab = "Principal Component Number")
+screeplot(pca2, main = "Scree Plot")
+
+```
+Since the scree plot shows that there is an elbow, or a sharp decrease in difference, after the first three principal components, we choose to use the first three principal components for the PCA. 
+
+```{r}
+# Performing principal component analysis on the data
+
+PCA <- prcomp(A_scaled, center = F, scale = F)
+PCA$rotation
+summary(PCA)
+```
+
+
+```{r}
+# Creating biplots
+par(mfrow = c(1, 3))
+# PC 1 and 2 biplot 
+biplot(pca, choices = c(1, 2), xlabs = rep("*", nrow(A_scaled)), cex = .75, xlab = "PC1", ylab = "PC2", main = "PC1 vs PC2 Biplot")
+
+# PC 1 and 3 biplot
+biplot(pca, choices = c(1, 3), xlabs = rep("*", nrow(A_scaled)), cex = .75, xlab = "PC1", ylab = "PC3", main = "PC1 vs PC3 Biplot")
+
+# PC 2 and 3 biplot
+biplot(pca, choices = c(2, 3), xlabs = rep("*", nrow(A_scaled)), cex = .75, xlab = "PC2", ylab = "PC3", main = "PC2 vs PC3 Biplot")
+
+```
